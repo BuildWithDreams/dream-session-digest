@@ -241,6 +241,26 @@ def resolve_commits_via_api(pushes):
     return enriched
 
 
+def enrich_repos_via_api(repos_created):
+    """
+    Given a list of {repo, description, url}, fetch full repo metadata
+    from the GitHub API to fill in the description if it's empty.
+    """
+    enriched = []
+    for repo_info in repos_created:
+        if repo_info.get("description"):
+            enriched.append(repo_info)
+            continue
+        try:
+            url = f"https://api.github.com/repos/{ORG}/{repo_info['repo']}"
+            data = gh_get(url)
+            desc = data.get("description", "") or "Repository created"
+            enriched.append({**repo_info, "description": desc})
+        except Exception:
+            enriched.append({**repo_info, "description": "Repository created"})
+    return enriched
+
+
 def enrich_issues_via_api(issues):
     """
     Given a list of {repo, number, title, url}, fetch full issue details
@@ -418,6 +438,9 @@ def build_evidence_manifest(since_date_str):
     # Enrich issue titles via API where missing
     final_issues = enrich_issues_via_api(final_issues)
 
+    # Enrich repo descriptions via API where missing
+    repos_created = enrich_repos_via_api(repos_created)
+
     # ── Build repos_touched list ──────────────────────────────────────────
     all_repo_names = set(
         c["repo"] for c in final_commits
@@ -453,7 +476,7 @@ def render_evidence_section(manifest):
         lines.append(f"\n📦 **New Repos — {org}**")
         for r in repos_created:
             repo = r["repo"]
-            desc = r.get("description", "Repository created")
+            desc = r.get("description", "Repository created") or "Repository created"
             lines.append(f"  • `+` **[{repo}]({r['url']})** — {desc}")
 
     # ── Changelog: Commits by repo ──────────────────────────────────────────
