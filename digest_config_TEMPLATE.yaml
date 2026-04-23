@@ -1,0 +1,45 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Hermes Session Digest — Configuration Template
+# Copy this file to digest_config.yaml and fill in your values.
+# digest_config.yaml is gitignored — never commit real credentials.
+# ─────────────────────────────────────────────────────────────────────────────
+
+# ── GitHub ───────────────────────────────────────────────────────────────────
+github:
+  # GitHub Personal Access Token (needs repo scope, org access for your org)
+  # Load from env: GITHUB_TOKEN or GITHUB_PAT
+  # Token is always read from environment — do NOT put it here.
+
+  # GitHub organization / username that owns the repos
+  org: "YOUR_GITHUB_ORG"
+
+  # Repository name for the Jekyll blog (GitHub Pages site)
+  blog_repo: "dream-blog"
+
+  # Repos to track for evidence scanning (commits, PRs, issues)
+  # Add any new repos you create here so they get scanned
+  tracked_repos:
+    - "dream-pbaas-provisioning"
+    - "docker-verusd"
+    - "dream-info"
+
+# ── Email ────────────────────────────────────────────────────────────────────
+email:
+  # SMTP From address — must be authorized for your himalaya SMTP account
+  from: "your-sender@example.com"
+
+  # Comma-separated list of recipients
+  to:
+    - "recipient1@example.com"
+
+# ── Sessions ─────────────────────────────────────────────────────────────────
+sessions:
+  # Directory where Hermes session files are stored
+  dir: "~/.hermes/sessions"
+
+  # Optional: path to himalaya CLI (auto-detected if omitted)
+  # himalaya: "~/.local/bin/himalaya"
+
+# ── Blog ──────────────────────────────────────────────────────────────────────
+# Blog push uses GITHUB_PAT from your environment — no extra token needed.
+# The PAT needs repo scope and org access to push to the blog repo.
