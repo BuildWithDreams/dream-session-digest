@@ -26,8 +26,10 @@ The fix for (1) is a **review & refine** workflow. The fix for (2) is a **"Where
 
 The user (or a future publishing team member) flags that a digest needs review. This is a **one-time, on-demand operation** — not a nightly step.
 
+**Critically: a review trigger always includes "where this leads".** The two are unified by design — when something was missed, the reason it matters and what needs to happen next are usually discovered together. The review dialog covers both: it corrects the record *and* captures the forward context in one pass.
+
 **Trigger methods (Phase 1):**
-- A Telegram message: `"review digest for [date]"` or similar
+- A Telegram message: `"review digest for [date]"` or `"review today"`
 - A CLI flag: `session_digest.py --review 2026-04-23`
 - A cron job watching for a `review_requested` marker file
 
@@ -43,14 +45,16 @@ When triggered, the system generates a short **review dialog** — 3–5 targete
 
 | # | Question | Purpose |
 |---|----------|---------|
-| 1 | "What's the single most important thing that happened today that isn't in the summary?" | Fills the biggest gap |
-| 2 | "Was anything started but left unfinished — does it matter?" | Completeness check |
-| 3 | "Was there anything unexpected — good or bad?" | Surfaces surprises |
-| 4 | "Any open threads, follow-ups, or decisions deferred?" | Tomorrow's anchors |
-| 5 | "Does the summary make sense to someone who wasn't in the room?" | Sanity check |
+| 1 | "What's the single most important thing that happened today that isn't in the summary?" | Retrospective — fills the biggest gap |
+| 2 | "Was anything started but left unfinished — does it matter?" | Retrospective — completeness check |
+| 3 | "Was there anything unexpected — good or bad?" | Retrospective — surfaces surprises |
+| 4 | "Any open threads, follow-ups, or decisions deferred — and what needs to happen next?" | **Forward-looking — where this leads** |
+| 5 | "Does the summary make sense to someone who wasn't in the room?" | Retrospective — sanity check |
+
+Q4 is the **"where this leads"** question embedded in the review dialog. When you answer it, you're doing double duty: correcting the record and threading forward in one go. No separate trigger needed.
 
 **Question generation rules:**
-- Always ask Q1 and Q4 minimum (the most critical gaps)
+- Always ask Q1 and Q4 minimum (the most critical gaps + forward context)
 - Q2, Q3, Q5 are asked conditionally based on session content signals
 - Questions are numbered (`[1]`, `[2]`) so answers can be tied to questions compactly
 - Questions are short — one focused sentence each
@@ -282,22 +286,26 @@ Section appended → blog post updated → pushed
 Insights written to digest_insights.yaml for cross-digest threading
 ```
 
-### 7.3 Review Flow
+### 7.3 Review Flow (Unified — includes "where this leads")
 
 ```
 User: "review digest for 2026-04-23" (Telegram / CLI)
         ↓
-Review dialog opened (3-5 questions via Telegram)
+Review dialog opened — questions 1–5 including Q4 (where this leads)
         ↓
-User answers each question
+User answers all questions
         ↓
-Refinement pass: Venice generates addendum block
+Refinement pass: Venice generates addendum incorporating Q1–Q3 corrections
+                  AND Q4 forward context
         ↓
 Addendum appended → blog post updated → new commit pushed
         ↓
 Reply-thread email sent with addendum
         ↓
 Digest tagged: reviewed-v1
+        ↓
+Q4 answers → insights written to digest_insights.yaml
+          → cross-digest threads updated
 ```
 
 ### 7.4 Deep-Dive Flow
