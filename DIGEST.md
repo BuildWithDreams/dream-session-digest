@@ -347,22 +347,194 @@ Insight status: active → promoted
 
 ```
 dream-session-digest/
-├── DIGEST.md                              ← new: feature spec (this document)
+├── DIGEST.md                              ← this document
 ├── SKILL.md                               ← updated: document new features
 ├── README.md                              ← updated: add features to overview
 ├── session_digest.py                      ← modified: --review flag, "Where This Leads" builder
 ├── fetch_github_evidence.py               ← no change
 ├── digest_config_TEMPLATE.yaml            ← modified: add review + forward_links + deep_dive sections
-└── scripts/
-    ├── generate_review_questions.py      ← new: review dialog question generator
-    ├── build_forward_links.py             ← new: "Where This Leads" section builder
-    ├── synthesize_deep_dive.py            ← new: deep-dive post synthesizer
-    └── digest_insights.yaml              ← new: cross-digest insight store (gitignored)
+├── .github/
+│   └── workflows/
+│       └── test.yml                       ← new: CI test suite
+└── tests/
+    ├── conftest.py                       ← new: shared fixtures
+    ├── unit/
+    │   ├── test_review_questions.py     ← new
+    │   ├── test_forward_links.py          ← new
+    │   ├── test_insight_store.py         ← new
+    │   └── test_config_parsing.py        ← new
+    ├── integration/
+    │   ├── test_digest_pipeline.py        ← new
+    │   ├── test_review_addendum.py        ← new
+    │   └── test_where_this_leads.py      ← new
+    └── regression/
+        └── test_existing_digest_invariants.py  ← new
 ```
 
 ---
 
-## 10. Open Questions for Feedback
+## 11. TDD — Test-Driven Development
+
+The system is complex enough that changes require a regression harness. TDD is mandatory for this project, not optional.
+
+### 11.1 Why TDD Here
+
+Three reasons this system specifically needs it:
+
+1. **Silent regressions** — The digest pipeline has many moving parts. A change to the clustering logic can silently change what summaries look like. A change to the email builder can silently drop the GitHub Activity section.
+2. **Non-deterministic output** — Venice generates different summaries on the same input. Tests can't assert on exact LLM output, but can assert on *structure, presence, and invariants*.
+3. **Multi-format sessions** — The system handles both JSONL (current) and JSON (legacy) session formats. Changing one parser shouldn't break the other.
+
+### 11.2 Test Categories
+
+| Category | What it tests | Example |
+|----------|--------------|---------|
+| **Unit** | Pure functions in isolation | `generate_review_questions()` returns correct questions for a given config |
+| **Unit** | Config parsing and fallback | Missing config fields fall back to defaults |
+| **Unit** | Session format detection | JSONL vs JSON sessions are parsed correctly |
+| **Integration** | Full pipeline with mocked Venice | Session JSONL → blog post YAML has correct front matter |
+| **Integration** | Review addendum flow | Questions + answers → addendum block has correct format |
+| **Regression** | Existing behavior unchanged | Standard digest output contains GitHub Activity section |
+| **Regression** | Email content invariants | Email body contains `SESSION DIGEST —`, cluster count, GitHub links |
+
+### 11.3 Test Structure
+
+```
+tests/
+├── conftest.py              ← shared fixtures: sample sessions, config, mock Venice
+├── unit/
+│   ├── test_review_questions.py
+│   ├── test_forward_links.py
+│   ├── test_insight_store.py
+│   └── test_config_parsing.py
+├── integration/
+│   ├── test_digest_pipeline.py
+│   ├── test_review_addendum.py
+│   └── test_where_this_leads.py
+└── regression/
+    └── test_existing_digest_invariants.py
+```
+
+### 11.4 Shared Fixtures (`conftest.py`)
+
+```python
+# Sample session files — real format, synthetic content
+@pytest.fixture
+def sample_session_jsonl():
+    """Current format: one JSON object per line"""
+    return ["~/.hermes/sessions/20260425_080000_abc123.jsonl"]
+
+@pytest.fixture
+def sample_session_legacy_json():
+    """Legacy format: JSON with messages array"""
+    return ["~/.hermes/sessions/session_20260315_080000_def456.json"]
+
+@pytest.fixture
+def mock_venice(mocker):
+    """Mocks Venice API — returns stable, structured responses"""
+    return mocker.patch('session_digest.venice_generate', return_value="...")
+
+@pytest.fixture
+def temp_digest_config(tmp_path):
+    """Minimal config for testing — no real credentials needed"""
+    config = tmp_path / "digest_config.yaml"
+    config.write_text("github:\n  org: test-org\n  blog_repo: test-blog\n  tracked_repos: []\nemail:\n  to: [test@example.com]\nreview:\n  enabled: true\nforward_links:\n  enabled: true\n")
+    return config
+```
+
+### 11.5 Regression Tests — Non-Negotiable
+
+These tests must pass on every commit. They protect the existing contracts:
+
+```python
+def test_digest_output_contains_github_activity(session, mock_venice, capsys):
+    """Every digest must include a GitHub Activity section."""
+    result = run_digest(session)
+    assert "## GitHub Activity" in result.blog_post_body
+
+def test_email_contains_session_count(session, mock_venice):
+    """Email header must state number of sessions and clusters."""
+    result = run_digest(session)
+    assert re.search(r"\d+ cluster\(s\) from \d+ session\(s\)", result.email_body)
+
+def test_review_addendum_has_reviewed_v1_marker(addendum_output):
+    """Reviewed posts must carry the reviewed-v1 tag in front matter."""
+    assert "reviewed-v1" in addendum_output.front_matter
+
+def test_where_this_leads_never_appears_without_trigger(session_no_trigger, mock_venice):
+    """Where This Leads section must NOT appear when not triggered."""
+    result = run_digest(session_no_trigger)
+    assert "## Where This Leads" not in result.blog_post_body
+
+def test_jsonl_and_json_sessions_both_parsed(sample_session_jsonl, sample_session_legacy_json):
+    """Both session formats must produce a valid digest without crashing."""
+    for session in [sample_session_jsonl, sample_session_legacy_json]:
+        result = run_digest(session)
+        assert result.cluster_count >= 1
+```
+
+### 11.6 TDD Workflow
+
+**For every feature or fix:**
+
+```
+1. Write the failing test
+   $ touch tests/unit/test_review_questions.py
+   $ pytest tests/unit/test_review_questions.py  # must FAIL
+
+2. Implement to make it pass
+   $ vim session_digest.py  # or scripts/generate_review_questions.py
+   $ pytest tests/unit/test_review_questions.py  # must PASS
+
+3. Run full suite — no regressions
+   $ pytest tests/ -v
+
+4. Commit with test coverage
+   $ git add tests/ session_digest.py
+   $ git commit -m "feat: review question generation [tests pass]"
+```
+
+**Before any PR merge:** full suite must pass, including regression suite.
+
+### 11.7 CI — GitHub Actions
+
+```yaml
+# .github/workflows/test.yml
+name: Test Suite
+
+on: [push, pull_request]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.11' }
+      - run: pip install pytest pytest-mock pyyaml
+      - run: pytest tests/ -v --tb=short
+
+  regression:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.11' }
+      - run: pip install pytest pytest-mock pyyaml
+      - run: pytest tests/regression/ -v
+      - name: Re-run digest on last 7 days (smoke test)
+        run: python3 session_digest.py --dry-run --date-range $(date -d '7 days ago' +%Y-%m-%d) $(date +%Y-%m-%d)
+```
+
+### 11.8 What Tests Cannot Cover
+
+- **Exact LLM output** — Venice summaries vary. Tests assert on *structure*, not copy.
+- **Network calls** — mocked in unit/integration; real API tested in a separate manual smoke test
+- **Blog publishing** — the git push step is mocked; actual push tested in a manual post-deploy check
+
+---
+
+## 12. Open Questions for Feedback
 
 Before implementation, these need answers:
 
