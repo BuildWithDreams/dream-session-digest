@@ -100,7 +100,13 @@ After answers are collected, a **refinement pass** is run:
 
 ### 3.1 Overview
 
-A new section appended to **every standard digest** (not review digests). It has three sub-sections:
+A section that is **generated on-demand** — triggered only when you explicitly ask for it in the context of current work. When not triggered, it does not appear in the digest at all.
+
+**Trigger:**
+- You say: `"where this leads"` or `"log this as a thread"` or similar during a session
+- The section is generated as part of that session's digest, not the previous night's
+
+This keeps the output clean and ensures every "Where This Leads" entry is intentional, not boilerplate.
 
 ```markdown
 ## Where This Leads
@@ -123,7 +129,7 @@ A new section appended to **every standard digest** (not review digests). It has
 
 ### 3.2 Data Sources
 
-Each sub-section pulls from different signals:
+Each sub-section pulls from different signals. The section is only built if the user triggered it in the session:
 
 | Sub-section | Source | Method |
 |-------------|--------|--------|
@@ -147,6 +153,7 @@ This creates a **wiki-style thread** between related digests without requiring m
 | Digest Type | Trigger | Output |
 |-------------|---------|--------|
 | `standard` | Nightly cron | Blog post + email |
+| `standard` + `where-this-leads` | Nightly cron + user triggered `"where this leads"` in-session | Blog post + email + Where This Leads section |
 | `review` | On-demand (user request) | Addendum block + reply email |
 | `deep-dive` | Auto (insight flagged "standalone") or manual | Standalone blog post |
 
@@ -229,12 +236,16 @@ review:
   auto_trigger_after_hour: 22    # Phase 2: auto-flag sessions running past this hour (UTC)
 
 # --- Section: Where This Leads ---
+# NOTE: This section is only generated when YOU explicitly ask for it
+# in-session (e.g. "where this leads"). The enabled flag here is for
+# adopting orgs who want to disable the feature entirely.
 
 forward_links:
   enabled: true
-  max_contextual_links: 5       # cap per digest to keep section scannable
-  max_anchors: 5                 # max items in Tomorrow's Anchors checklist
-  cross_thread_threshold: 3     # promote after N digest references
+  trigger_phrase: "where this leads"   # phrase to detect in session for triggering
+  max_contextual_links: 5             # cap per digest to keep section scannable
+  max_anchors: 5                       # max items in Tomorrow's Anchors checklist
+  cross_thread_threshold: 3           # flag as standalone-candidate after N references
 
 deep_dive:
   auto_promote: false            # Phase 2: auto-promote when threshold reached
@@ -249,11 +260,29 @@ deep_dive:
 
 ```
 4am cron → session_digest.py → email + blog post (standard)
-                                        ↓
-                              "Where This Leads" section auto-appended
 ```
 
-### 7.2 Review Flow
+**"Where This Leads"** is not automatic — it is triggered only when you explicitly
+request it during a session (e.g. `"where this leads"`). When triggered, it is
+built from that session's content and appended to the digest at the next run.
+
+### 7.2 Where This Leads Flow
+
+```
+You: "where this leads" (during a session)
+        ↓
+Session tagged with where-this-leads marker
+        ↓
+Next nightly digest picks up the marker
+        ↓
+"Where This Leads" section built from that session's URLs, todos, follow-ups
+        ↓
+Section appended → blog post updated → pushed
+        ↓
+Insights written to digest_insights.yaml for cross-digest threading
+```
+
+### 7.3 Review Flow
 
 ```
 User: "review digest for 2026-04-23" (Telegram / CLI)
@@ -271,7 +300,7 @@ Reply-thread email sent with addendum
 Digest tagged: reviewed-v1
 ```
 
-### 7.3 Deep-Dive Flow
+### 7.4 Deep-Dive Flow
 
 ```
 "Tomorrow's Anchors" or "Threaded Insights" flagged after N references
