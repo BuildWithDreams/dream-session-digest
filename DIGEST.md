@@ -125,7 +125,7 @@ This keeps the output clean and ensures every "Where This Leads" entry is intent
 - **Weak signal:** [text] — not actionable yet, worth tracking
 - **Cross-thread:** [text] → relates to Day N
 
-### 📌 Tomorrow's Anchors
+### 📌 Future Anchors
 - [ ] Monitor the vDEX bot for 24h stability
 - [ ] Review vARRR bridge audit findings
 - [ ] Follow up: why did the build take 3× longer than expected?
@@ -139,7 +139,7 @@ Each sub-section pulls from different signals. The section is only built if the 
 |-------------|--------|--------|
 | Contextual Links | Repos, issues, PRs mentioned in sessions | Extract URLs and map to brief descriptions |
 | Threaded Insights | Pattern across recent digests; weak signals from current session | Venice-generated; flagged as `insight` in post-processing |
-| Tomorrow's Anchors | TODO items, follow-up markers, deferred decisions | Extracted from session content; auto-generated checklist |
+| Future Anchors | TODO items, follow-up markers, deferred decisions | Extracted from session content; auto-generated checklist |
 
 ### 3.3 Cross-Digest Threads
 
@@ -205,7 +205,8 @@ varrr-bridge-audit-2026-04-23:
   type: pattern|weak-signal|cross-thread|decision  # insight category
   first_seen: 2026-04-23
   last_updated: 2026-04-26
-  status: active|resolved|promoted  # lifecycle stage
+  status: active|resolved|promoted|parked  # lifecycle stage
+  reason: null  # set when status=resolved: "stale", "confirmed-fixed", "manually-closed"
   links:
     - https://github.com/BuildWithDreams/varrr-bridge/issues/47
     - https://github.com/BuildWithDreams/varrr-bridge/commit/a1b2c3d
@@ -223,7 +224,12 @@ varrr-bridge-audit-2026-04-23:
 ```
 active → resolved  (confirmed fixed or no longer relevant)
 active → promoted  (expanded to standalone deep-dive post)
+active → parked    (deferred by user; re-opens on next mention)
+resolved → active  (re-opened by user or referenced again after archive)
+parked → active   (referenced in a future "where this leads" or review dialog)
 ```
+
+**Auto-archive:** Insights in `active` status with no digest references for 14 days are auto-archived (`status: resolved, reason: stale`). Archived insights remain readable but are deprioritized. They can be manually re-opened at any time by referencing them in a review or "where this leads" dialog.
 
 ---
 
@@ -248,7 +254,7 @@ forward_links:
   enabled: true
   trigger_phrase: "where this leads"   # phrase to detect in session for triggering
   max_contextual_links: 5             # cap per digest to keep section scannable
-  max_anchors: 5                       # max items in Tomorrow's Anchors checklist
+  max_anchors: 5                       # max items in Future Anchors checklist
   cross_thread_threshold: 3           # flag as standalone-candidate after N references
 
 deep_dive:
@@ -308,21 +314,36 @@ Q4 answers → insights written to digest_insights.yaml
           → cross-digest threads updated
 ```
 
-### 7.4 Deep-Dive Flow
+### 7.4 Deep-Dive Flow (Cron-Triggered Questionnaire)
+
+Deep-dive promotion is driven by a **questionnaire triggered from the nightly cron**, not a manual request. The flow handles three states:
+
+**Trigger:** Cron runs at 4am and checks `digest_insights.yaml` for insights that have reached `cross_thread_threshold` (default: 3 digest references) or have `status: active` and are past their stale date.
 
 ```
-"Tomorrow's Anchors" or "Threaded Insights" flagged after N references
+Cron (4am): digest_insights.yaml scan
         ↓
-User approves promotion: "promote this thread"
+Insight flagged as standalone-candidate (≥N references OR user-tagged)
         ↓
-Synthesis pass: Venice collects all cross-references
+Questionnaire sent to user: "This thread has N mentions — promote to deep-dive?"
         ↓
-Standalone post generated and pushed
-        ↓
-Source digests updated with backlink
-        ↓
-Insight status: active → promoted
+User replies: "yes" / "defer" / "park until next trigger"
+        │
+        ├── "yes" → Synthesis pass → standalone post generated → push
+        │         → Source digests get backlink
+        │         → Insight status: active → promoted
+        │
+        ├── "defer" → Remind tonight (next cron cycle)
+        │
+        └── "park" → Status: active → parked
+                    → Re-opens when same insight is mentioned again
+                    → ("this relates to the [thread name] we parked")
 ```
+
+**Parking and re-opening:**
+- A parked insight stays in `digest_insights.yaml` with `status: parked`
+- Any future `"where this leads"` or review dialog that references the insight by slug or topic reopens it: `parked → active`
+- The re-opened insight resumes accumulating references toward promotion
 
 ---
 
@@ -538,27 +559,12 @@ jobs:
 
 Before implementation, these need answers:
 
-~~1. **Delivery format for review questions** — Telegram is the primary channel. Should the dialog be:~~ ✅ **DECIDED — (a)**
-- Single Telegram message with all questions; user replies with `[1] answer [2] answer...`
-- If an answer is omitted, bot asks: *"Q[N] was skipped — should this remain unanswered, or do you want to add an answer?"*
-- Publishing does not proceed until all non-optional questions are answered or explicitly deferred
-- Q4 (where this leads) is **always required** — it is the core of the unified review + forward-looking flow
+~~1. **Delivery format for review questions**~~ ✅ DECIDED — (a) — single Telegram message with numbered answers
 
-2. **Review addendum email** — Should it be:
-   - (a) A reply-thread email (keeps it grouped with original digest)
-   - (b) A new top-level email with a `⚠️ Updated` prefix in the subject
+~~2. **Review addendum email**~~ ✅ DECIDED — reply-thread email
 
-3. **"Tomorrow's Anchors" format** — Should this be:
-   - (a) A checklist (`- [ ]`) — actionable, scannable
-   - (b) A plain list — simpler to generate
-   - (c) A table with `Action | Owner | Deadline` — if multiple people are involved
+~~3. **"Future Anchors" format**~~ ✅ DECIDED — renamed "Future Anchors", checklist format (`- [ ]`), lives under "Where This Leads"
 
-4. **Auto-promotion of deep-dives** — Should the system:
-   - (a) Only flag as `standalone-candidate`, never auto-promote (user must approve)
-   - (b) Auto-promote after N references but allow undo
-   - (c) Auto-promote silently (no friction, just a backlink added)
+~~4. **Auto-promotion of deep-dives**~~ ✅ DECIDED — cron-triggered questionnaire, can be deferred or parked until next mention/trigger
 
-5. **Insight expiry** — Insights marked `active` that haven't been referenced in 14 days:
-   - (a) Auto-archive (status: resolved, reason: stale)
-   - (b) Surface as "this thread seems cold — close it?" in next review
-   - (c) Keep alive indefinitely until manually closed
+~~5. **Insight expiry**~~ ✅ DECIDED — keep open indefinitely; auto-archive after 14 days with no mention, but re-openable
