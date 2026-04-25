@@ -10,13 +10,17 @@
 
 ## 1. Problem Statement
 
-Two related gaps exist in the current digest system:
+Four related gaps exist in the current digest system:
 
 1. **Incomplete captures** — The nightly digest sometimes misses vital work that emerged late in a session or wasn't part of the main thread. The day's most important outcome may be buried or absent.
 
 2. **No forward-looking structure** — Digests are siloed by day. There's no native way to link across days, surface patterns, record external context, or flag things that matter for tomorrow.
 
-The fix for (1) is a **review & refine** workflow. The fix for (2) is a **"Where This Leads"** section embedded in every digest — and a class of **standalone deep-dive posts** that span multiple days.
+3. **No media support** — Screenshots, terminal output, error states, and short screen recordings can't be included in posts. They are often the clearest explanation of what happened.
+
+4. **No regression harness** — The system is complex enough that changes require a test suite to prevent silent regressions.
+
+The fix for (1) is a **review & refine** workflow. The fix for (2) is **"Where This Leads"** + **deep-dive posts**. The fix for (3) is **explicit media support** (Feature D). The fix for (4) is the **TDD section** (§11).
 
 ---
 
@@ -194,7 +198,115 @@ layout: post
 
 ---
 
-## 5. Schema: Threaded Insight Object
+## 5. Feature D — Explicit Media Support
+
+### 5.1 Overview
+
+Images and short screen recordings can be explicitly included in any digest context: standard digest, review addendum, or "where this leads". Media is stored in the blog repo (`assets/media/`) and embedded by reference in the post.
+
+**No AI captioning.** The user provides context on upload — the model doesn't need to see the image. Token cost is limited to the URL and user's caption text.
+
+### 5.2 Supported Formats
+
+| Format | Extension | Notes |
+|--------|-----------|-------|
+| Image | PNG, JPG, JPEG, WebP | Screenshots, terminal output, error states |
+| Screen recording | MP4, WebM | Short only — no hard limit yet, use judgment |
+
+### 5.3 Storage
+
+Media files live in the blog repo at:
+```
+dream-blog/
+└── assets/
+    └── media/
+        └── YYYY-MM-DD/
+            ├── screenshot-01.png
+            ├── screenshot-02.webp
+            └── recording-01.mp4
+```
+
+Files are committed alongside the post that includes them. The media URL in the post is a relative path:
+```markdown
+![Screenshot: vDEX liquidity bot dashboard](/assets/media/2026-04-25/screenshot-01.png)
+```
+
+### 5.4 Explicit Trigger
+
+Media is **never auto-added**. The user explicitly requests it in any context:
+
+| Context | Trigger |
+|---------|---------|
+| During session | `"add screenshot to post"` or `"attach media to digest"` |
+| Review dialog | Q4 (Future Anchors) includes: *"Any screenshots or recordings worth including?"* |
+| Where this leads | Any sub-section can include media alongside its items |
+
+The user provides a caption at time of upload. The media + caption is associated with the current session's digest entry.
+
+### 5.5 Token Budget
+
+Media inclusion extends the Venice token budget but **does not require vision inference**:
+
+```
+Base:          text-only digest
++image:        URL (50–200 chars) + user caption text (~1–2 sentences)
+              → Venice summarises the surrounding text + caption, not the image
++recording:   URL + duration note + user caption
++review:      ×2.0 multiplier (unchanged)
++where-this-leads: ×1.5 multiplier (unchanged)
+```
+
+### 5.6 Blog Post Embed
+
+```markdown
+---
+
+## Screenshots & Media
+
+![vDEX bot dashboard — completed deployment, 20:47](/assets/media/2026-04-25/screenshot-01.png)
+*Screenshot: vDEX liquidity bot deployment confirmation*
+
+![Terminal: build output — 3× slower than expected](/assets/media/2026-04-25/terminal-build.png)
+*Build took 47s — investigating dependency resolution*
+```
+
+Or inline with Future Anchors:
+
+```markdown
+### 📌 Future Anchors
+
+- [ ] Monitor vDEX bot for 24h stability
+  ![Bot dashboard after 12h](/assets/media/2026-04-25/bot-dashboard.png)
+```
+
+### 5.7 Workflow
+
+```
+User: "add screenshot to post" (with image attached to Telegram message)
+        ↓
+Image saved to session media queue (local temp)
+        ↓
+User provides caption (inline with upload or immediately after)
+        ↓
+Next digest run:
+  - Images moved to blog repo at assets/media/YYYY-MM-DD/
+  - git add + commit
+  - Post updated with media references
+  - Push to GitHub Pages
+```
+
+**On review:** media queued during review dialog is included in the addendum block, added to the same `assets/media/` date folder, and pushed in the same commit.
+
+### 5.8 Implementation Notes
+
+- The Telegram bot must accept image/video uploads and store them locally
+- Media is queued in `~/.hermes/scripts/media_queue.yaml` with: `{ path, caption, target_date, target_section }`
+- On next digest run, the publish step processes the queue: uploads to blog repo, updates post, pushes
+- If the blog repo is not reachable during the digest run, media is retried on the next run
+
+---
+
+## 6. Schema: Threaded Insight Object
 
 Stored in a new file: `~/.hermes/scripts/digest_insights.yaml`
 
@@ -233,7 +345,7 @@ parked → active   (referenced in a future "where this leads" or review dialog)
 
 ---
 
-## 6. Config: New Fields
+## 7. Config: New Fields
 
 Added to `digest_config_TEMPLATE.yaml`:
 
@@ -264,9 +376,9 @@ deep_dive:
 
 ---
 
-## 7. Workflow: Publishing Team Process
+## 8. Workflow: Publishing Team Process
 
-### 7.1 Standard Nightly Flow (unchanged)
+### 8.1 Standard Nightly Flow (unchanged)
 
 ```
 4am cron → session_digest.py → email + blog post (standard)
@@ -276,7 +388,7 @@ deep_dive:
 request it during a session (e.g. `"where this leads"`). When triggered, it is
 built from that session's content and appended to the digest at the next run.
 
-### 7.2 Where This Leads Flow
+### 8.2 Where This Leads Flow
 
 ```
 You: "where this leads" (during a session)
@@ -292,7 +404,7 @@ Section appended → blog post updated → pushed
 Insights written to digest_insights.yaml for cross-digest threading
 ```
 
-### 7.3 Review Flow (Unified — includes "where this leads")
+### 8.3 Review Flow (Unified — includes "where this leads")
 
 ```
 User: "review digest for 2026-04-23" (Telegram / CLI)
@@ -314,7 +426,7 @@ Q4 answers → insights written to digest_insights.yaml
           → cross-digest threads updated
 ```
 
-### 7.4 Deep-Dive Flow (Cron-Triggered Questionnaire)
+### 8.4 Deep-Dive Flow (Cron-Triggered Questionnaire)
 
 Deep-dive promotion is driven by a **questionnaire triggered from the nightly cron**, not a manual request. The flow handles three states:
 
@@ -347,7 +459,7 @@ User replies: "yes" / "defer" / "park until next trigger"
 
 ---
 
-## 8. Acceptance Criteria
+## 9. Acceptance Criteria
 
 | ID | Criterion | Testable By |
 |----|-----------|-------------|
@@ -361,10 +473,15 @@ User replies: "yes" / "defer" / "park until next trigger"
 | AC8 | Adopting org can enable/disable each feature independently via `digest_config.yaml` | Manual: toggle flags, run digest |
 | AC9 | New fields in config are absent → feature disabled (graceful fallback) | Automated: remove fields, run digest |
 | AC10 | Review refinement uses increased token budget (logged) | Manual: inspect Venice API call logs |
+| AC11 | Media upload via Telegram is accepted and queued | Manual: send image with caption, check `media_queue.yaml` |
+| AC12 | Media appears in correct day's `assets/media/YYYY-MM-DD/` in blog repo | Manual: inspect blog repo after digest run |
+| AC13 | Media embeds correctly in blog post as markdown image | Manual: inspect rendered blog post |
+| AC14 | Media is NOT auto-added — only when explicitly triggered | Automated: run digest with no media trigger, verify `assets/media/` unchanged |
+| AC15 | Video (MP4/WebM) uploads are accepted and stored | Manual: send video with caption, check file in blog repo |
 
 ---
 
-## 9. File Changes
+## 10. File Changes
 
 ```
 dream-session-digest/
@@ -373,7 +490,7 @@ dream-session-digest/
 ├── README.md                              ← updated: add features to overview
 ├── session_digest.py                      ← modified: --review flag, "Where This Leads" builder
 ├── fetch_github_evidence.py               ← no change
-├── digest_config_TEMPLATE.yaml            ← modified: add review + forward_links + deep_dive sections
+├── digest_config_TEMPLATE.yaml            ← modified: add review + forward_links + deep_dive + media sections
 ├── .github/
 │   └── workflows/
 │       └── test.yml                       ← new: CI test suite
@@ -383,13 +500,19 @@ dream-session-digest/
     │   ├── test_review_questions.py     ← new
     │   ├── test_forward_links.py          ← new
     │   ├── test_insight_store.py         ← new
-    │   └── test_config_parsing.py        ← new
+    │   ├── test_config_parsing.py        ← new
+    │   └── test_media_queue.py           ← new
     ├── integration/
     │   ├── test_digest_pipeline.py        ← new
     │   ├── test_review_addendum.py        ← new
     │   └── test_where_this_leads.py      ← new
     └── regression/
         └── test_existing_digest_invariants.py  ← new
+
+Supporting files (not in this repo):
+~/.hermes/scripts/media_queue.yaml           ← media upload queue (gitignored)
+~/.hermes/scripts/digest_insights.yaml      ← cross-digest insight store (gitignored)
+dream-blog/assets/media/                     ← media storage in blog repo (gitignored in blog)
 ```
 
 ---
