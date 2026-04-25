@@ -538,10 +538,11 @@ jobs:
 
 Before implementation, these need answers:
 
-1. **Delivery format for review questions** — Telegram is the primary channel. Should the dialog be:
-   - (a) A single Telegram message with numbered questions, user replies with `[1] answer [2] answer...`
-   - (b) One question per message, bot waits for each answer before sending next
-   - (c) A mini-survey interface via Telegram inline buttons
+~~1. **Delivery format for review questions** — Telegram is the primary channel. Should the dialog be:~~ ✅ **DECIDED — (a)**
+- Single Telegram message with all questions; user replies with `[1] answer [2] answer...`
+- If an answer is omitted, bot asks: *"Q[N] was skipped — should this remain unanswered, or do you want to add an answer?"*
+- Publishing does not proceed until all non-optional questions are answered or explicitly deferred
+- Q4 (where this leads) is **always required** — it is the core of the unified review + forward-looking flow
 
 2. **Review addendum email** — Should it be:
    - (a) A reply-thread email (keeps it grouped with original digest)
