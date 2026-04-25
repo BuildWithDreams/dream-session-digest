@@ -137,11 +137,48 @@ See `digest_config_TEMPLATE.yaml` for the full reference.
 dream-session-digest/
 ├── SKILL.md                      ← technical skill reference
 ├── README.md                     ← this file
-├── session_digest.py             ← main digest script
-├── fetch_github_evidence.py       ← GitHub evidence scanner
+├── DIGEST.md                     ← feature spec (source of truth)
+├── session_digest.py             ← main digest script (symlinked to ~/.hermes/scripts/)
+├── fetch_github_evidence.py      ← GitHub evidence scanner
+├── review_addendum.py            ← Feature A: review dialog + addendum builder
+├── review_questions.py           ← Feature A: question generation
+├── forward_links.py              ← Feature B: "Where This Leads" section builder
+├── insight_store.py              ← Feature B: digest_insights.yaml (threaded insights)
+├── blog_post_editor.py           ← Features A+C: blog post editing + deep-dive promotion
+├── media_queue.py                ← Feature D: media queue + markdown embed
 ├── digest_config_TEMPLATE.yaml   ← annotated config template
-└── .gitignore
+├── tests/                        ← TDD test suite (102 tests)
+│   ├── unit/
+│   ├── integration/
+│   └── regression/
+└── .github/workflows/test.yml    ← CI (runs pytest on push + PR)
 ```
+
+## New Features (v5)
+
+### Review Addendum (Feature A, §2)
+Human-in-the-loop review dialog — triggered via Telegram ("review today") or CLI (`--review`).
+
+```bash
+# Step 1: generate review questions
+python3 session_digest.py --review 2026-04-23
+
+# Step 2: provide numbered answers
+python3 session_digest.py --review 2026-04-23 --answers '[1] completed vDEX bot; [4] monitor 24h'
+```
+
+Appends `## Review Addendum — reviewed-v1` to the blog post and sets `reviewed: true` in front matter.
+
+### Where This Leads (Feature B, §3)
+Trigger with "where this leads" in any session. Builds a `## Where This Leads` section with contextual links (GitHub issues/PRs/commits), threaded insights from `digest_insights.yaml`, and future anchors (TODO items + follow-ups).
+
+Insights appearing in ≥3 digests are flagged `standalone_candidate` and prompted for deep-dive promotion.
+
+### Deep-Dive Promotion (Feature C, §4)
+Insights can be promoted to standalone blog posts. Front matter: `title`, `date`, `tags: [deep-dive, ...]`, `digest_sources: [...]`, `layout: post`.
+
+### Media Queue (Feature D, §5.8)
+Send images (PNG/JPG/WebP) or video (MP4/WebM) from Telegram with a caption. Files are committed to `assets/media/YYYY-MM-DD/` in the blog repo and embedded as markdown images in the post.
 
 ## License
 

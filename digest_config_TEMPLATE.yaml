@@ -43,3 +43,40 @@ sessions:
 # ── Blog ──────────────────────────────────────────────────────────────────────
 # Blog push uses GITHUB_PAT from your environment — no extra token needed.
 # The PAT needs repo scope and org access to push to the blog repo.
+
+# ── Review (Feature A, §2) ────────────────────────────────────────────────────
+# Human-in-the-loop review dialog — generates Q&A, appends addendum to blog post.
+review:
+  enabled: true
+  # Extra token budget multiplier for review refinement pass
+  token_budget_multiplier: 2.0
+  # Auto-trigger review after this hour (22 = after 10 PM UTC, for next morning)
+  auto_trigger_after_hour: 22
+
+# ── Where This Leads (Feature B, §3) ──────────────────────────────────────────
+# Forward-links section — only generated when explicitly triggered.
+forward_links:
+  enabled: true
+  # Trigger phrase that activates the section (case-insensitive)
+  trigger_phrase: "where this leads"
+  # Max contextual links shown (GitHub issues/PRs/commits + external URLs)
+  max_contextual_links: 5
+  # Max future anchors (TODO items, follow-ups, deferred decisions)
+  max_anchors: 5
+  # Digest references needed before insight becomes standalone-candidate
+  cross_thread_threshold: 3
+
+# ── Deep-Dive Promotion (Feature C, §4) ────────────────────────────────────────
+# Long-running threads (>= min_days_span with >= cross_thread_threshold refs)
+# can be promoted to standalone blog posts.
+deep_dive:
+  auto_promote: false
+  min_days_span: 3
+
+# ── Media Queue (Feature D, §5.8) ──────────────────────────────────────────────
+# Queue media files (PNG, JPG, WebP, MP4, WebM) for next digest run.
+# Files are committed to assets/media/YYYY-MM-DD/ in the blog repo.
+media:
+  enabled: true
+  # Local path where the blog repo is (or will be) cloned for media uploads
+  blog_repo_dir: "~/.hermes/dream-blog-clone"

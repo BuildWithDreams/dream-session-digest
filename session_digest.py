@@ -1000,7 +1000,49 @@ def main():
     parser.add_argument("end_date", nargs="?", help="End date YYYY-MM-DD (default: same as date)")
     parser.add_argument("--dry-run", action="store_true", help="Print email without sending")
     parser.add_argument("-v", "--verbose", action="store_true")
+    parser.add_argument(
+        "--review",
+        dest="review_date",
+        metavar="YYYY-MM-DD",
+        default=None,
+        help="Open review dialog for the specified date (generates questions, "
+             "collects answers, appends addendum to blog post)",
+    )
     args = parser.parse_args()
+
+    if args.review_date:
+        from review_addendum import is_review_trigger, extract_review_date
+        from review_questions import generate_review_questions
+        from session_digest import get_sessions_for_date, extract_messages_from_session
+
+        target_date = args.review_date
+        # Collect session text for question generation
+        session_files = get_sessions_for_date(target_date)
+        session_texts = []
+        for f in session_files:
+            try:
+                with open(f) as fh:
+                    content = fh.read()
+                session_texts.append(content)
+            except Exception:
+                pass
+        combined = "\n".join(session_texts)
+
+        questions = generate_review_questions(
+            session_text=combined,
+            session_files=session_files,
+            date_str=target_date,
+        )
+
+        print(f"\n[Review] Questions for {target_date}:")
+        for q in questions:
+            print(f"  {q}")
+        print(f"\n[Review] Reply with numbered answers, e.g.:")
+        print(f"  [1] The most important thing...")
+        print(f"  [4] Monitor the bot for 24h...")
+        print(f"\n[Review] To provide answers, run:")
+        print(f"  python3 session_digest.py --review {target_date} --answers '[1] answer; [4] follow-ups'")
+        return
 
     date_str, end_date_str = get_date_range(args)
     run(date_str, end_date_str, dry_run=args.dry_run, verbose=args.verbose)

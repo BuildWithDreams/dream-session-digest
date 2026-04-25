@@ -1,7 +1,7 @@
 ---
 name: dream-session-digest
 description: Venice-powered nightly session digest for Hermes CLI — clusters similar sessions, generates blog-style summaries, emails via himalaya, and publishes Jekyll posts to dream-blog with GitHub evidence links.
-version: 4.0.0
+version: 5.0.0
 tags: [hermes, session, digest, blog, jekyll, venice-ai, github]
 related_skills: []
 ---
@@ -41,6 +41,44 @@ python3 session_digest.py 2026-04-22
 
 # Date range
 python3 session_digest.py 2026-04-01 2026-04-22
+
+# Review a digest (Feature A)
+# Step 1 — generate questions:
+python3 session_digest.py --review 2026-04-23
+# Step 2 — provide answers:
+python3 session_digest.py --review 2026-04-23 --answers '[1] answer; [4] follow-up'
+```
+
+## New Features (v5)
+
+### Feature A — Review Addendum (§2)
+Trigger with "review today" or "review digest for YYYY-MM-DD" in Telegram, or `--review` CLI flag. Generates Q&A questions about the session, collects answers, and appends a `## Review Addendum — reviewed-v1` block to the blog post with `reviewed: true` in front matter.
+
+```bash
+# Telegram:
+/review digest for 2026-04-23
+
+# CLI:
+python3 session_digest.py --review 2026-04-23
+```
+
+### Feature B — Where This Leads (§3)
+Trigger with "where this leads" in any session. Builds a `## Where This Leads` section with three sub-sections:
+- **Contextual Links** — GitHub issues/PRs/commits and external URLs extracted from the session
+- **Threaded Insights** — cross-digest insights tracked in `digest_insights.yaml`
+- **Future Anchors** — TODO items, follow-ups, deferred decisions
+
+Insights with ≥3 digest references are flagged `standalone_candidate` and can be promoted to deep-dive posts.
+
+### Feature C — Deep-Dive Promotion (§4)
+Insights accumulated over multiple digests can be promoted to standalone blog posts via review questionnaire. Blog post front matter includes `digest_sources` referencing all contributing dates.
+
+### Feature D — Media Queue (§5.8)
+Queue PNG/JPG/WebP/MP4/WebM files from Telegram for the next digest run. Files are committed to `assets/media/YYYY-MM-DD/` in the blog repo and embedded as markdown images in the post.
+
+```bash
+# In Telegram, send an image with a caption
+# It is queued and embedded on next digest run
 ```
 
 ## Config System
